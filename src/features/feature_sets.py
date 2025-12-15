@@ -149,30 +149,46 @@ def compute_all_features(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.nd
     # Copy original data
     all_features = unified_data.copy()
     
+    # Get reference shape for consistency
+    if 'x' in unified_data:
+        reference_shape = unified_data['x'].shape
+    elif 'u' in unified_data:
+        reference_shape = unified_data['u'].shape
+    else:
+        reference_shape = None
+    
+    # Ensure all arrays have consistent shapes (either all 2D or all flattened)
+    if reference_shape is not None:
+        for key, arr in all_features.items():
+            if isinstance(arr, np.ndarray) and arr.size == np.prod(reference_shape):
+                if arr.shape != reference_shape:
+                    # Reshape to reference shape if needed
+                    all_features[key] = arr.reshape(reference_shape)
+    
     # Handle strain field compatibility: create 'dudx' alias for 'primary_strain' if needed
     if 'primary_strain' in unified_data and 'dudx' not in unified_data:
         all_features['dudx'] = unified_data['primary_strain']
         print("Using primary_strain as dudx for feature compatibility")
     
     # Extract basic fields
-    u = unified_data['u']
-    v = unified_data['v']
+    u = all_features['u']
+    v = all_features['v']
     
     # Compute velocity features
     velocity_features = compute_velocity_features(u, v)
     all_features.update(velocity_features)
     
     # Compute strain rate features if gradients are available
-    if all(key in unified_data for key in ['dudx', 'dvdy', 'dudy', 'dvdx']):
+    if all(key in all_features for key in ['dudx', 'dvdy', 'dudy', 'dvdx']):
         # Check if strain rate tensors have already been computed and are consistent
-        if all(key in unified_data for key in ['epsilon_xx', 'epsilon_yy', 'epsilon_xy', 'effective_strain']):
+        if all(key in all_features for key in ['epsilon_xx', 'epsilon_yy', 'epsilon_xy', 'effective_strain']):
             # Use existing computed values
             pass
         else:
             # Compute strain rate tensor
             strain_tensor = compute_strain_rate_tensor(
-                unified_data['dudx'], unified_data['dvdy'],
-                unified_data['dudy'], unified_data['dvdx']
+                all_features['dudx'], all_features['dvdy'],
+                all_features['dudy'], all_features['dvdx']
             )
             all_features.update(strain_tensor)
             
@@ -183,14 +199,13 @@ def compute_all_features(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.nd
             validate_strain_features(strain_tensor)
     
     # Compute viscosity features if available
-    if 'mu' in unified_data and 'eta' in unified_data:
-        mu = unified_data['mu']
-        eta = unified_data['eta']
+    if 'mu' in all_features and 'eta' in all_features:
+        mu = all_features['mu']
+        eta = all_features['eta']
+        h = all_features.get('h')
         
         # Basic viscosity features
-        viscosity_features = compute_viscosity_features(
-            mu, eta, unified_data.get('h')
-        )
+        viscosity_features = compute_viscosity_features(mu, eta, h)
         all_features.update(viscosity_features)
         
         # Stress features if strain data is available
