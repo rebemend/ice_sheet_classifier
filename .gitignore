@@ -222,9 +222,6 @@ outputs/
 analysis/
 *_analysis/
 *_test/
-*.npz
-*.png
-*.pdf
 *.eps
 
 # Planning documents

@@ -14,11 +14,234 @@ import json
 import time
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from data_loading.assemble_dataset import load_processed_dataset
+
+def create_clustering_visualizations(features_scaled, labels, centroids, feature_names, output_dir, k=3):
+    """
+    Create comprehensive visualization plots for clustering results.
+    
+    Parameters
+    ----------
+    features_scaled : np.ndarray
+        Scaled feature array
+    labels : np.ndarray
+        Cluster labels
+    centroids : np.ndarray
+        Cluster centroids
+    feature_names : list
+        Names of features
+    output_dir : Path
+        Output directory for plots
+    k : int
+        Number of clusters
+    """
+    print("Creating visualization plots...")
+    
+    # Set up plotting style
+    plt.style.use('default')
+    sns.set_palette("husl", k)
+    
+    # Sample points for visualization if dataset is too large
+    n_sample = min(10000, len(features_scaled))
+    if len(features_scaled) > n_sample:
+        sample_idx = np.random.choice(len(features_scaled), n_sample, replace=False)
+        features_viz = features_scaled[sample_idx]
+        labels_viz = labels[sample_idx]
+    else:
+        features_viz = features_scaled
+        labels_viz = labels
+        sample_idx = np.arange(len(features_scaled))
+    
+    # 1. Feature Pair Plots
+    print("  Creating feature pair plots...")
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    feature_pairs = [(0, 1), (0, 2), (1, 3), (2, 3)]
+    pair_names = [('dudx', 'speed'), ('dudx', 'mu'), ('speed', 'anisotropy'), ('mu', 'anisotropy')]
+    
+    for idx, ((i, j), (name_i, name_j)) in enumerate(zip(feature_pairs, pair_names)):
+        ax = axes[idx//2, idx%2]
+        
+        for cluster in range(k):
+            cluster_mask = labels_viz == cluster
+            if np.any(cluster_mask):
+                ax.scatter(
+                    features_viz[cluster_mask, i],
+                    features_viz[cluster_mask, j],
+                    alpha=0.6, s=20, label=f'Cluster {cluster}'
+                )
+        
+        ax.set_xlabel(f'{name_i} (scaled)')
+        ax.set_ylabel(f'{name_j} (scaled)')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_title(f'{name_i} vs {name_j}')
+    
+    plt.suptitle('Feature Space: Pairwise Cluster Separation', fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_dir / "feature_pairs.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    # 2. PCA Visualization
+    print("  Creating PCA visualization...")
+    pca = PCA(n_components=2)
+    features_pca = pca.fit_transform(features_viz)
+    
+    plt.figure(figsize=(10, 8))
+    for cluster in range(k):
+        cluster_mask = labels_viz == cluster
+        if np.any(cluster_mask):
+            plt.scatter(
+                features_pca[cluster_mask, 0],
+                features_pca[cluster_mask, 1],
+                alpha=0.7, s=30, 
+                label=f'Cluster {cluster} ({np.sum(cluster_mask)} points)'
+            )
+    
+    plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)')
+    plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)')
+    plt.title('Clusters in Principal Component Space')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.savefig(output_dir / "pca_clusters.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    # 3. Cluster Analysis (Centroids + Sizes)
+    print("  Creating cluster analysis plots...")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Centroid values
+    x_pos = np.arange(len(feature_names))
+    width = 0.25
+    
+    for cluster in range(k):
+        ax1.bar(
+            x_pos + cluster * width, 
+            centroids[cluster], 
+            width, 
+            label=f'Cluster {cluster}',
+            alpha=0.8
+        )
+    
+    ax1.set_xlabel('Features')
+    ax1.set_ylabel('Centroid Value (scaled)')
+    ax1.set_title('Cluster Centroids in Feature Space')
+    ax1.set_xticks(x_pos + width)
+    ax1.set_xticklabels(feature_names)
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Cluster sizes
+    sizes = [np.sum(labels == i) for i in range(k)]
+    colors = plt.cm.Set2(np.arange(k))
+    
+    ax2.pie(sizes, labels=[f'Cluster {i}\\n({size:,} points)' for i, size in enumerate(sizes)],
+            autopct='%1.1f%%', colors=colors, startangle=90)
+    ax2.set_title('Cluster Size Distribution')
+    
+    plt.tight_layout()
+    plt.savefig(output_dir / "cluster_analysis.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    # 4. Feature Distributions by Cluster
+    print("  Creating feature distribution plots...")
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    
+    for idx, feature_name in enumerate(feature_names):
+        ax = axes[idx//2, idx%2]
+        
+        feature_values = features_scaled[:, idx]
+        
+        for cluster in range(k):
+            cluster_mask = labels == cluster
+            if np.any(cluster_mask):
+                ax.hist(
+                    feature_values[cluster_mask], 
+                    alpha=0.7, 
+                    bins=50, 
+                    label=f'Cluster {cluster}',
+                    density=True
+                )
+        
+        ax.set_xlabel(f'{feature_name} (scaled)')
+        ax.set_ylabel('Density')
+        ax.set_title(f'Distribution of {feature_name}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    plt.suptitle('Feature Distributions by Cluster', fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_dir / "feature_distributions.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    # 5. Silhouette Analysis (if silhouette scores available)
+    print("  Creating silhouette analysis...")
+    try:
+        from sklearn.metrics import silhouette_samples
+        
+        # Use sample for silhouette analysis if dataset is large
+        if len(features_scaled) > 5000:
+            silhouette_idx = np.random.choice(len(features_scaled), 5000, replace=False)
+            silhouette_features = features_scaled[silhouette_idx]
+            silhouette_labels = labels[silhouette_idx]
+        else:
+            silhouette_features = features_scaled
+            silhouette_labels = labels
+        
+        silhouette_scores = silhouette_samples(silhouette_features, silhouette_labels)
+        silhouette_avg = np.mean(silhouette_scores)
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        y_lower = 10
+        
+        for cluster in range(k):
+            cluster_silhouette_values = silhouette_scores[silhouette_labels == cluster]
+            cluster_silhouette_values.sort()
+            
+            size_cluster = cluster_silhouette_values.shape[0]
+            y_upper = y_lower + size_cluster
+            
+            color = plt.cm.Set2(cluster)
+            ax.fill_betweenx(np.arange(y_lower, y_upper),
+                            0, cluster_silhouette_values,
+                            facecolor=color, edgecolor=color, alpha=0.7)
+            
+            ax.text(-0.05, y_lower + 0.5 * size_cluster, str(cluster))
+            y_lower = y_upper + 10
+        
+        ax.set_xlabel('Silhouette Score')
+        ax.set_ylabel('Cluster')
+        ax.set_title(f'Silhouette Analysis (Average Score: {silhouette_avg:.3f})')
+        
+        # Add vertical line for average silhouette score
+        ax.axvline(x=silhouette_avg, color="red", linestyle="--", 
+                  label=f'Average Score: {silhouette_avg:.3f}')
+        ax.legend()
+        
+        plt.tight_layout()
+        plt.savefig(output_dir / "silhouette_analysis.png", dpi=150, bbox_inches='tight')
+        plt.close()
+        
+    except Exception as e:
+        print(f"    Skipping silhouette analysis: {e}")
+    
+    print("  Visualization plots completed!")
+    
+    return [
+        "feature_pairs.png",
+        "pca_clusters.png", 
+        "cluster_analysis.png",
+        "feature_distributions.png",
+        "silhouette_analysis.png"
+    ]
 
 def optimized_kmeans_analysis(features_scaled, k=3, max_silhouette_size=50000):
     """
@@ -137,6 +360,8 @@ def main():
                        help='Number of clusters (default: 3)')
     parser.add_argument('--max_silhouette_size', type=int, default=50000,
                        help='Maximum size for silhouette computation')
+    parser.add_argument('--no_plots', action='store_true',
+                       help='Skip visualization plots (faster execution)')
     
     args = parser.parse_args()
     
@@ -272,9 +497,26 @@ def main():
     with open(summary_file, 'w') as f:
         json.dump(summary_data, f, indent=2)
     
-    print(f"✓ Summary saved to: {summary_file}")
+    print(f"Summary saved to: {summary_file}")
     
-    print("\n🎉 Optimized clustering completed successfully!")
+    # Create visualizations (unless disabled)
+    if not args.no_plots:
+        print()
+        try:
+            plot_files = create_clustering_visualizations(
+                features_scaled, results['labels'], results['centroids'], 
+                feature_names, output_dir, args.k
+            )
+            print("Visualization files created:")
+            for plot_file in plot_files:
+                print(f"  - {plot_file}")
+        except Exception as e:
+            print(f"Warning: Visualization creation failed: {e}")
+            print("  Continuing without plots...")
+    else:
+        print("\nVisualization plots skipped (--no_plots flag used)")
+    
+    print("\nOptimized clustering completed successfully!")
 
 if __name__ == '__main__':
     main()
