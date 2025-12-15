@@ -411,6 +411,24 @@ def load_processed_dataset(dataset_path: str) -> Tuple[Dict[str, np.ndarray], Di
     # All other keys go to unified_data (including computed features like dudx, speed, etc.)
     unified_data = {key: loaded[key] for key in loaded.keys() if key not in feature_only_keys}
     
+    # Fix shape inconsistency issues in loaded data
+    if 'x' in unified_data:
+        reference_shape = unified_data['x'].shape
+        total_elements = np.prod(reference_shape)
+        
+        # Ensure all arrays that should have the same spatial extent are reshaped consistently
+        spatial_fields = ['x', 'y', 'u', 'v', 'h', 'speed', 'dudx', 'dvdy', 'dudy', 'dvdx',
+                         'mu', 'eta', 'effective_strain', 'anisotropy', 'primary_strain',
+                         'epsilon_xx', 'epsilon_yy', 'epsilon_xy']
+        
+        for field_name in spatial_fields:
+            if field_name in unified_data:
+                field_data = unified_data[field_name]
+                if isinstance(field_data, np.ndarray) and field_data.size == total_elements:
+                    if field_data.shape != reference_shape:
+                        unified_data[field_name] = field_data.reshape(reference_shape)
+                        print(f"Reshaped {field_name} from {field_data.shape} to {reference_shape}")
+    
     return unified_data, feature_data
 
 

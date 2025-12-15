@@ -226,3 +226,6 @@ analysis/
 *.png
 *.pdf
 *.eps
+
+# Planning documents
+planning/

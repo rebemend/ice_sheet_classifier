@@ -63,11 +63,36 @@ class KMeansRunner:
         centroids = kmeans.cluster_centers_
         inertia = kmeans.inertia_
         
-        # Compute silhouette score
+        # Compute silhouette score with sampling for large datasets
         if n_clusters > 1 and features.shape[0] > n_clusters:
             try:
-                silhouette_avg = silhouette_score(features, labels)
-                silhouette_samples_scores = silhouette_samples(features, labels)
+                # Use sampling for silhouette computation on large datasets
+                max_silhouette_samples = 10000  # Threshold for sampling
+                
+                if features.shape[0] > max_silhouette_samples:
+                    # Sample random subset for silhouette computation
+                    sample_size = min(5000, features.shape[0] // 2)
+                    sample_indices = np.random.choice(
+                        features.shape[0], sample_size, replace=False
+                    )
+                    sample_features = features[sample_indices]
+                    sample_labels = labels[sample_indices]
+                    
+                    silhouette_avg = silhouette_score(sample_features, sample_labels)
+                    # For samples, only compute for the sampled points
+                    sample_silhouette_scores = silhouette_samples(sample_features, sample_labels)
+                    
+                    # Create full-size array with NaN for non-sampled points
+                    silhouette_samples_scores = np.full(len(labels), np.nan)
+                    silhouette_samples_scores[sample_indices] = sample_silhouette_scores
+                    
+                    warnings.warn(f"Large dataset ({features.shape[0]} points): "
+                                f"computed silhouette on {sample_size} sampled points")
+                else:
+                    # Small dataset: compute full silhouette
+                    silhouette_avg = silhouette_score(features, labels)
+                    silhouette_samples_scores = silhouette_samples(features, labels)
+                    
             except Exception as e:
                 warnings.warn(f"Failed to compute silhouette score: {e}")
                 silhouette_avg = np.nan

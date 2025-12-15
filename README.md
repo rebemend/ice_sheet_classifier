@@ -11,6 +11,27 @@ This repository implements an unsupervised classification system that identifies
 
 The classifier uses k-means clustering on physical features derived from ice shelf velocity and viscosity fields.
 
+### Repository Structure
+
+  ice_sheet_classifier/
+  ├── README.md              
+  ├── requirements.txt       # Clean dependencies
+  ├── environment.yml        # Simplified conda environment
+  ├── scripts/              # Main execution scripts
+  │   ├── run_k_selection.py      # K-value selection (elbow
+  method)
+  │   ├── run_optimized_kmeans.py # Main k-means classification
+  │   └── run_kmeans.py           # Full pipeline
+  ├── src/                  # Source code (with necessary 
+  __init__.py)
+  ├── tests/               # Unit tests only
+  ├── data/                # All data files organized here
+  │   ├── real_data_analysis/
+  │   ├── real_data_baseline/
+  │   └── analysis/
+  ├── test_output/         # Preserved but git-ignored
+  └── planning/           # Git-ignored planning documents
+
 ## Installation
 
 ### Requirements
@@ -23,7 +44,7 @@ The classifier uses k-means clustering on physical features derived from ice she
 ### Setup
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone <https://github.com/rebemend/ice_sheet_classifier>
 cd ice_sheet_classifier
 
 # Install dependencies
@@ -32,29 +53,33 @@ pip install -r requirements.txt
 
 ## Quick Start
 
-### 1. Basic Usage with Preprocessed Data
+### 1. K-Value Selection (Elbow Method)
+To determine the optimal number of clusters for your dataset:
+```bash
+python scripts/run_k_selection.py \
+    --processed_data data/real_data_analysis/processed_dataset.npz \
+    --output_dir results/ \
+    --k_range 2 8
+```
 
-If you already have processed data:
-
+### 2. K-Means Classification
+Once you've determined the optimal k value (typically k=3 for ice shelf regimes):
 ```bash
 python scripts/run_optimized_kmeans.py \
-    --processed_data real_data_analysis/processed_dataset.npz \
+    --processed_data data/real_data_analysis/processed_dataset.npz \
     --output_dir results/ \
     --k 3
 ```
 
-### 2. Full Pipeline from Raw Data
-
-For raw DIFFUSE data and MATLAB results:
-
+### 3. Full Pipeline with Raw Data
+To run the complete pipeline from raw DIFFUSE and MATLAB data:
 ```bash
 python scripts/run_kmeans.py \
     --diffice_data data/DIFFICE_jax \
     --viscosity_data data/raw/results.mat \
     --output_dir results/ \
     --k 3 \
-    --feature_set primary \
-    --analysis_only
+    --feature_set primary
 ```
 
 ## Data Requirements
@@ -253,56 +278,9 @@ Physical consistency checks:
 - Velocities: 10⁻⁸ to 10⁻⁵ m/s
 - Anisotropy ratios: 0.1 to 10
 
-## Development
-
-### Repository Structure
-```
-ice_sheet_classifier/
-├── src/                    # Source code
-│   ├── data_loading/      # Data I/O and preprocessing
-│   ├── features/          # Feature computation
-│   ├── clustering/        # K-means algorithms  
-│   ├── utils/            # Utilities and validation
-│   └── visualization/    # Plotting and analysis
-├── scripts/              # Main execution scripts
-├── tests/               # Unit tests
-├── data/                # Input data directory
-└── docs/                # Additional documentation
-```
-
 ### Testing
 
 Run the test suite:
 ```bash
 python -m pytest tests/
-```
-
-### Contributing
-
-1. Follow existing code style and structure
-2. Add tests for new features
-3. Update documentation
-4. Use meaningful commit messages
-
-## References
-
-- DIFFUSE_jax repository for ice shelf modeling
-- Sergienko & Hulbe (2011) for ice shelf rheology
-- Arthur & Vassilvitskii (2007) for k-means++ initialization
-
-## License
-
-[Add appropriate license information]
-
-## Citation
-
-If you use this code in your research, please cite:
-
-```bibtex
-@software{ice_shelf_classifier,
-  title={Ice Shelf Flow Regime Classifier},
-  author={[Author Names]},
-  year={2024},
-  url={[Repository URL]}
-}
 ```
