@@ -159,17 +159,23 @@ def compute_all_features(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.nd
     
     # Compute strain rate features if gradients are available
     if all(key in unified_data for key in ['dudx', 'dvdy', 'dudy', 'dvdx']):
-        strain_tensor = compute_strain_rate_tensor(
-            unified_data['dudx'], unified_data['dvdy'],
-            unified_data['dudy'], unified_data['dvdx']
-        )
-        all_features.update(strain_tensor)
-        
-        # Advanced deformation features
-        deformation_features = compute_deformation_features(strain_tensor)
-        all_features.update(deformation_features)
-        
-        validate_strain_features(strain_tensor)
+        # Check if strain rate tensors have already been computed and are consistent
+        if all(key in unified_data for key in ['epsilon_xx', 'epsilon_yy', 'epsilon_xy', 'effective_strain']):
+            # Use existing computed values
+            pass
+        else:
+            # Compute strain rate tensor
+            strain_tensor = compute_strain_rate_tensor(
+                unified_data['dudx'], unified_data['dvdy'],
+                unified_data['dudy'], unified_data['dvdx']
+            )
+            all_features.update(strain_tensor)
+            
+            # Advanced deformation features
+            deformation_features = compute_deformation_features(strain_tensor)
+            all_features.update(deformation_features)
+            
+            validate_strain_features(strain_tensor)
     
     # Compute viscosity features if available
     if 'mu' in unified_data and 'eta' in unified_data:

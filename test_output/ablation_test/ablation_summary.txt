@@ -1,0 +1,42 @@
+Ice Shelf Feature Ablation Analysis Summary
+==================================================
+
+Dataset: test_data/diffice_amery
+Viscosity data: test_data/results.mat
+Base feature set: primary
+Features tested: dudx, speed, mu, anisotropy
+Number of clusters: 3
+Scaling method: standard
+Valid data points: 2000
+
+Individual Feature Ablation Results:
+--------------------------------------
+Feature        Inertia Δ%  Silhouette Δ   Impact
+------------------------------------------------------------
+dudx              -35.5%       +0.048     Low
+speed             -23.6%       -0.025     Low
+mu                -31.5%       -0.017     Low
+anisotropy        -24.3%       -0.017     Low
+
+Feature Importance Ranking:
+---------------------------
+1. speed (score: -13.1)
+2. anisotropy (score: -13.9)
+3. mu (score: -18.2)
+4. dudx (score: -23.2)
+
+Most important: speed
+Least important: dudx
+
+Feature Subset Recommendation:
+------------------------------
+Recommended features (4): speed, anisotropy, mu, dudx
+Reduction from 4 to 4 features
+(0% reduction)
+
+
+Interpretation and Recommendations:
+-----------------------------------
+• The most important feature is 'speed'
+• The least important feature is 'dudx'
+• For optimal performance with reduced complexity, use: speed, anisotropy, mu, dudx

@@ -290,12 +290,15 @@ def load_processed_dataset(dataset_path: str) -> Tuple[Dict[str, np.ndarray], Di
     """
     loaded = np.load(dataset_path)
     
-    # Split back into unified_data and feature_data
-    feature_keys = ['coordinates', 'baseline_features', 'primary_features', 
-                   'mask', 'grid_shape', 'dudx', 'speed', 'mu', 'anisotropy']
+    # Keys that belong to feature_data specifically
+    feature_only_keys = ['coordinates', 'baseline_features', 'primary_features', 
+                        'mask', 'grid_shape']
     
-    feature_data = {key: loaded[key] for key in feature_keys if key in loaded}
-    unified_data = {key: loaded[key] for key in loaded.keys() if key not in feature_keys}
+    # Extract feature-specific data
+    feature_data = {key: loaded[key] for key in feature_only_keys if key in loaded}
+    
+    # All other keys go to unified_data (including computed features like dudx, speed, etc.)
+    unified_data = {key: loaded[key] for key in loaded.keys() if key not in feature_only_keys}
     
     return unified_data, feature_data
 

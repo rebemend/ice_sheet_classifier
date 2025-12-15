@@ -2,7 +2,14 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 import warnings
 from .kmeans_runner import KMeansRunner
-from ..features.feature_sets import FeatureSetDefinitions
+try:
+    from ..features.feature_sets import FeatureSetDefinitions
+except ImportError:
+    # When running as script, relative imports may fail
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    from features.feature_sets import FeatureSetDefinitions
 
 
 class FeatureAblationAnalyzer:
