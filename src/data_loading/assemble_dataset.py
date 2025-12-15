@@ -4,6 +4,7 @@ from scipy.interpolate import griddata
 import warnings
 from .extract_diffice_amery import load_and_process_diffice_amery, validate_diffice_data
 from .load_matlab import load_and_validate_viscosity
+from .load_results_mat import load_complete_results_data, validate_results_data
 
 
 def interpolate_to_common_grid(source_data: Dict[str, np.ndarray], 
@@ -40,16 +41,32 @@ def interpolate_to_common_grid(source_data: Dict[str, np.ndarray],
         # Already 2D grids
         source_x_grid, source_y_grid = source_x, source_y
     
-    # Flatten source coordinates
+    # Flatten source coordinates and remove NaN points
+    source_x_flat = source_x_grid.flatten()
+    source_y_flat = source_y_grid.flatten()
+    
+    # Find finite coordinate points
+    finite_mask = np.isfinite(source_x_flat) & np.isfinite(source_y_flat)
+    
+    if np.sum(finite_mask) == 0:
+        raise ValueError("No finite coordinate points found in source data")
+    
     source_points = np.column_stack([
-        source_x_grid.flatten(),
-        source_y_grid.flatten()
+        source_x_flat[finite_mask],
+        source_y_flat[finite_mask]
     ])
     
-    # Target grid points
-    target_points = np.column_stack([
-        target_x.flatten(),
-        target_y.flatten()
+    # Target grid points - also filter NaN
+    target_x_flat = target_x.flatten()
+    target_y_flat = target_y.flatten()
+    target_finite_mask = np.isfinite(target_x_flat) & np.isfinite(target_y_flat)
+    
+    if np.sum(target_finite_mask) == 0:
+        raise ValueError("No finite coordinate points found in target data")
+    
+    target_points_finite = np.column_stack([
+        target_x_flat[target_finite_mask],
+        target_y_flat[target_finite_mask]
     ])
     
     interpolated_data = {}
@@ -60,12 +77,32 @@ def interpolate_to_common_grid(source_data: Dict[str, np.ndarray],
             continue
         
         source_field = source_data[field]
+        source_field_flat = source_field.flatten()
         
-        # Interpolate using griddata with linear interpolation
+        # Only use finite source field values that correspond to finite coordinates
+        source_values = source_field_flat[finite_mask]
+        
+        # Further filter to remove NaN values in the field itself
+        field_finite_mask = np.isfinite(source_values)
+        if np.sum(field_finite_mask) == 0:
+            warnings.warn(f"Field '{field}' has no finite values, filling with NaN")
+            interpolated_data[field] = np.full(target_x.shape, np.nan)
+            continue
+        
+        final_source_points = source_points[field_finite_mask]
+        final_source_values = source_values[field_finite_mask]
+        
+        # Create full target grid for output
+        target_points_full = np.column_stack([
+            target_x_flat,
+            target_y_flat
+        ])
+        
+        # Interpolate using griddata with linear interpolation  
         interpolated_field = griddata(
-            source_points,
-            source_field.flatten(),
-            target_points,
+            final_source_points,
+            final_source_values,
+            target_points_full,
             method='linear',
             fill_value=np.nan
         )
@@ -111,16 +148,56 @@ def check_grid_compatibility(diffice_data: Dict[str, np.ndarray],
     if diffice_y.shape != viscosity_y.shape:
         return False
     
-    # Check coordinate similarity (within 1% tolerance)
-    x_close = np.allclose(diffice_x, viscosity_x, rtol=0.01)
-    y_close = np.allclose(diffice_y, viscosity_y, rtol=0.01)
+    # Check coordinate similarity (within 1% tolerance, handling NaN values)
+    # Only compare where both coordinates are finite
+    finite_d = np.isfinite(diffice_x) & np.isfinite(diffice_y)
+    finite_v = np.isfinite(viscosity_x) & np.isfinite(viscosity_y)
+    both_finite = finite_d & finite_v
+    
+    if np.sum(both_finite) == 0:
+        # No overlapping finite points - assume incompatible
+        return False
+    
+    x_close = np.allclose(diffice_x[both_finite], viscosity_x[both_finite], rtol=0.01, atol=1e-6)
+    y_close = np.allclose(diffice_y[both_finite], viscosity_y[both_finite], rtol=0.01, atol=1e-6)
     
     return x_close and y_close
 
 
+def create_unified_dataset_from_results(results_mat_path: str) -> Dict[str, np.ndarray]:
+    """
+    Create unified dataset using results.mat as primary source for consistency.
+    
+    This approach uses the results.mat file as the primary data source since it
+    contains all required fields on a consistent grid with proper scaling and
+    derived quantities already computed.
+    
+    Parameters
+    ----------
+    results_mat_path : str
+        Path to the results.mat file
+        
+    Returns
+    -------
+    Dict[str, np.ndarray]
+        Complete unified dataset with all fields
+    """
+    print("Loading complete dataset from results.mat...")
+    unified_data = load_complete_results_data(results_mat_path)
+    validate_results_data(unified_data)
+    
+    print(f"Unified dataset created successfully:")
+    print(f"  Grid shape: {unified_data['x'].shape}")
+    print(f"  Total fields: {len(unified_data)}")
+    print(f"  Key fields: {list(unified_data.keys())}")
+    
+    return unified_data
+
+
 def create_unified_dataset(diffice_data_path: str, 
                           viscosity_mat_path: str,
-                          force_interpolation: bool = False) -> Dict[str, np.ndarray]:
+                          force_interpolation: bool = False,
+                          use_results_only: bool = True) -> Dict[str, np.ndarray]:
     """
     Create unified dataset by combining DIFFICE and viscosity data.
     
@@ -129,22 +206,35 @@ def create_unified_dataset(diffice_data_path: str,
     diffice_data_path : str
         Path to DIFFICE Amery data
     viscosity_mat_path : str
-        Path to viscosity MATLAB file
+        Path to viscosity MATLAB file (results.mat)
     force_interpolation : bool
         If True, force interpolation even if grids appear compatible
+    use_results_only : bool
+        If True, use results.mat as primary source (recommended for consistency)
         
     Returns
     -------
     Dict[str, np.ndarray]
         Unified dataset containing all required fields on common grid
     """
-    # Load individual datasets
-    print("Loading DIFFICE data...")
-    diffice_data = load_and_process_diffice_amery(diffice_data_path)
-    validate_diffice_data(diffice_data)
+    # Use results.mat only for consistency (recommended approach)
+    if use_results_only:
+        print("Using results.mat as primary data source for consistency...")
+        return create_unified_dataset_from_results(viscosity_mat_path)
     
-    print("Loading viscosity data...")
+    # Legacy approach: combine DIFFICE and viscosity data (may have scaling issues)
+    print("Loading viscosity data first to extract scaling factors...")
     viscosity_data = load_and_validate_viscosity(viscosity_mat_path)
+    
+    # Extract velocity scaling factors from viscosity data if available
+    velocity_scaling = None
+    if 'scale_u0' in viscosity_data and 'scale_v0' in viscosity_data:
+        velocity_scaling = (viscosity_data['scale_u0'], viscosity_data['scale_v0'])
+        print(f"Found velocity scaling factors: u0={velocity_scaling[0]:.6e}, v0={velocity_scaling[1]:.6e}")
+    
+    print("Loading DIFFICE data...")
+    diffice_data = load_and_process_diffice_amery(diffice_data_path, velocity_scaling)
+    validate_diffice_data(diffice_data)
     
     # Check grid compatibility
     grids_compatible = check_grid_compatibility(diffice_data, viscosity_data)
@@ -199,24 +289,41 @@ def create_feature_arrays(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.n
     coordinates = np.column_stack([x_flat, y_flat])
     
     # Extract and flatten feature fields
-    dudx = unified_data['dudx'].flatten()
+    # Use effective_strain from results.mat if available, otherwise dudx
+    if 'effective_strain' in unified_data:
+        primary_strain = unified_data['effective_strain'].flatten()
+        print("Using effective_strain from viscosity data")
+    else:
+        primary_strain = unified_data['dudx'].flatten()
+        warnings.warn("Using computed dudx (may be near-zero for DIFFUSE data)")
+    
     speed = unified_data['speed'].flatten()
     
     # Check if viscosity fields are available
-    if 'mu' in unified_data and 'anisotropy' in unified_data:
+    if 'mu' in unified_data:
         mu = unified_data['mu'].flatten()
-        anisotropy = unified_data['anisotropy'].flatten()
         has_viscosity = True
+        
+        # Compute anisotropy if not already present
+        if 'anisotropy' in unified_data:
+            anisotropy = unified_data['anisotropy'].flatten()
+        elif 'eta' in unified_data:
+            eta = unified_data['eta'].flatten()
+            anisotropy = mu / eta
+            print("Computed anisotropy from mu/eta")
+        else:
+            anisotropy = np.full_like(mu, np.nan)
+            warnings.warn("Cannot compute anisotropy: eta field missing")
     else:
-        warnings.warn("Viscosity data not available, using baseline features only")
-        mu = np.full_like(dudx, np.nan)
-        anisotropy = np.full_like(dudx, np.nan)
+        warnings.warn("Viscosity data not available, using strain-based features only")
+        mu = np.full_like(primary_strain, np.nan)
+        anisotropy = np.full_like(primary_strain, np.nan)
         has_viscosity = False
     
     # Create validity mask (exclude NaN and infinite values)
-    valid_mask = (np.isfinite(dudx) & 
-                  np.isfinite(speed) & 
-                  (speed > 0))  # Speed should be non-negative
+    # For very small strain values, just check if finite (not necessarily > 0)
+    valid_mask = (np.isfinite(primary_strain) & 
+                  np.isfinite(speed))  # Allow zero or very small strain values
     
     if has_viscosity:
         valid_mask = (valid_mask & 
@@ -225,10 +332,10 @@ def create_feature_arrays(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.n
                      (mu > 0))  # Viscosity should be positive
     
     # Create feature arrays
-    baseline_features = np.column_stack([dudx, speed])
+    baseline_features = np.column_stack([primary_strain, speed])
     
     if has_viscosity:
-        primary_features = np.column_stack([dudx, speed, mu, anisotropy])
+        primary_features = np.column_stack([primary_strain, speed, mu, anisotropy])
     else:
         primary_features = baseline_features
     
@@ -242,11 +349,15 @@ def create_feature_arrays(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.n
     
     # Add individual feature arrays for analysis
     feature_data.update({
-        'dudx': dudx,
+        'primary_strain': primary_strain,  # This is either effective_strain or dudx
         'speed': speed,
         'mu': mu,
         'anisotropy': anisotropy
     })
+    
+    # Also add the strain field name for reference
+    strain_field_name = 'effective_strain' if 'effective_strain' in unified_data else 'dudx'
+    feature_data['strain_field_name'] = strain_field_name
     
     return feature_data
 

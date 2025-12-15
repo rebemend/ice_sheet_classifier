@@ -149,6 +149,11 @@ def compute_all_features(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.nd
     # Copy original data
     all_features = unified_data.copy()
     
+    # Handle strain field compatibility: create 'dudx' alias for 'primary_strain' if needed
+    if 'primary_strain' in unified_data and 'dudx' not in unified_data:
+        all_features['dudx'] = unified_data['primary_strain']
+        print("Using primary_strain as dudx for feature compatibility")
+    
     # Extract basic fields
     u = unified_data['u']
     v = unified_data['v']

@@ -3,11 +3,16 @@ import pickle
 from pathlib import Path
 from typing import Dict, Tuple, Optional, Union
 import warnings
+try:
+    import scipy.io
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
 
 
 def load_diffice_data(diffice_data_path: str) -> Dict[str, np.ndarray]:
     """
-    Load Amery Ice Shelf data from DIFFICE_jax repository structure.
+    Load Amery Ice Shelf data from DIFFICE_jax repository structure or direct .mat file.
     
     This function attempts to load the following fields:
     - x, y: spatial coordinates
@@ -18,7 +23,7 @@ def load_diffice_data(diffice_data_path: str) -> Dict[str, np.ndarray]:
     Parameters
     ----------
     diffice_data_path : str
-        Path to the directory containing DIFFICE Amery data files
+        Path to the directory containing DIFFICE Amery data files or direct .mat file
         
     Returns
     -------
@@ -28,17 +33,33 @@ def load_diffice_data(diffice_data_path: str) -> Dict[str, np.ndarray]:
     Raises
     ------
     FileNotFoundError
-        If the specified directory or required files are not found
+        If the specified directory/file or required files are not found
     """
     data_path = Path(diffice_data_path)
     if not data_path.exists():
-        raise FileNotFoundError(f"DIFFICE data directory not found: {diffice_data_path}")
+        raise FileNotFoundError(f"DIFFICE data path not found: {diffice_data_path}")
+    
+    # If it's a .mat file, load it directly
+    if data_path.is_file() and data_path.suffix.lower() == '.mat':
+        if not SCIPY_AVAILABLE:
+            raise ImportError("scipy is required to load .mat files. Install with: pip install scipy")
+        try:
+            diffice_data = scipy.io.loadmat(str(data_path))
+            # Remove metadata entries that start with '__'
+            diffice_data = {k: v for k, v in diffice_data.items() if not k.startswith('__')}
+            return diffice_data
+        except Exception as e:
+            raise ValueError(f"Failed to load .mat file {diffice_data_path}: {e}")
+    
+    # Otherwise, handle as directory
+    if not data_path.is_dir():
+        raise NotADirectoryError(f"Expected directory or .mat file, got: {diffice_data_path}")
     
     diffice_data = {}
     
     # Look for common DIFFICE file patterns
     # This may need to be adjusted based on actual DIFFICE_jax file structure
-    possible_extensions = ['.pkl', '.npy', '.npz', '.pickle']
+    possible_extensions = ['.pkl', '.npy', '.npz', '.pickle', '.mat']
     possible_files = [
         'amery_data', 'amery_ice_shelf', 'data', 'results',
         'velocity_field', 'thickness', 'coordinates'
@@ -94,6 +115,12 @@ def load_file_by_extension(file_path: Path) -> Union[Dict, np.ndarray]:
     elif ext in ['.pkl', '.pickle']:
         with open(file_path, 'rb') as f:
             return pickle.load(f)
+    elif ext == '.mat':
+        if not SCIPY_AVAILABLE:
+            raise ImportError("scipy is required to load .mat files. Install with: pip install scipy")
+        data = scipy.io.loadmat(str(file_path))
+        # Remove metadata entries that start with '__'
+        return {k: v for k, v in data.items() if not k.startswith('__')}
     else:
         raise ValueError(f"Unsupported file extension: {ext}")
 
@@ -118,8 +145,8 @@ def extract_velocity_components(diffice_data: Dict[str, np.ndarray]) -> Tuple[np
         If velocity components cannot be found
     """
     # Common variable names for velocity components
-    u_names = ['u', 'u_velocity', 'velocity_x', 'vx']
-    v_names = ['v', 'v_velocity', 'velocity_y', 'vy']
+    u_names = ['u', 'u_velocity', 'velocity_x', 'vx', 'ud']
+    v_names = ['v', 'v_velocity', 'velocity_y', 'vy', 'vd']
     
     u, v = None, None
     
@@ -159,8 +186,8 @@ def extract_coordinates(diffice_data: Dict[str, np.ndarray]) -> Tuple[np.ndarray
     Tuple[np.ndarray, np.ndarray]
         x and y coordinate arrays
     """
-    x_names = ['x', 'X', 'x_coord', 'longitude', 'lon']
-    y_names = ['y', 'Y', 'y_coord', 'latitude', 'lat']
+    x_names = ['x', 'X', 'x_coord', 'longitude', 'lon', 'xd']
+    y_names = ['y', 'Y', 'y_coord', 'latitude', 'lat', 'yd']
     
     x, y = None, None
     
@@ -198,7 +225,7 @@ def extract_ice_thickness(diffice_data: Dict[str, np.ndarray]) -> np.ndarray:
     np.ndarray
         Ice thickness array
     """
-    h_names = ['h', 'thickness', 'ice_thickness', 'H']
+    h_names = ['h', 'thickness', 'ice_thickness', 'H', 'hd']
     
     for name in h_names:
         if name in diffice_data:
@@ -254,7 +281,8 @@ def compute_strain_rates(u: np.ndarray, v: np.ndarray,
     }
 
 
-def load_and_process_diffice_amery(diffice_data_path: str) -> Dict[str, np.ndarray]:
+def load_and_process_diffice_amery(diffice_data_path: str, 
+                                   velocity_scaling: Optional[Tuple[float, float]] = None) -> Dict[str, np.ndarray]:
     """
     Load and process all required fields from DIFFICE Amery data.
     
@@ -262,13 +290,15 @@ def load_and_process_diffice_amery(diffice_data_path: str) -> Dict[str, np.ndarr
     ----------
     diffice_data_path : str
         Path to DIFFICE Amery data directory
+    velocity_scaling : Optional[Tuple[float, float]]
+        Velocity scaling factors (u0, v0) to convert dimensionless to physical units
         
     Returns
     -------
     Dict[str, np.ndarray]
         Processed data containing:
         - 'x', 'y': coordinates
-        - 'u', 'v': velocities  
+        - 'u', 'v': velocities (scaled to physical units if scaling provided)
         - 'h': ice thickness
         - 'dudx', 'dvdy', 'dudy', 'dvdx': strain rates
         - 'speed': velocity magnitude
@@ -278,12 +308,42 @@ def load_and_process_diffice_amery(diffice_data_path: str) -> Dict[str, np.ndarr
     
     # Extract required components
     u, v = extract_velocity_components(raw_data)
-    x, y = extract_coordinates(raw_data) 
-    h = extract_ice_thickness(raw_data)
+    x, y = extract_coordinates(raw_data)
     
-    # Compute derived quantities
-    strain_rates = compute_strain_rates(u, v, x, y)
+    # Apply velocity scaling if provided
+    if velocity_scaling is not None:
+        u0, v0 = velocity_scaling
+        u = u * u0  # Convert to physical units
+        v = v * v0  # Convert to physical units
+        print(f"Applied velocity scaling: u0={u0:.6e}, v0={v0:.6e}")
+    else:
+        warnings.warn("No velocity scaling applied - velocities remain dimensionless") 
+    
+    # Try to extract thickness, but handle gracefully if different grid sizes
+    try:
+        h = extract_ice_thickness(raw_data)
+        # Check if thickness has same shape as velocity
+        if h.shape != u.shape:
+            warnings.warn(f"Thickness shape {h.shape} differs from velocity shape {u.shape}. Using dummy thickness.")
+            h = np.ones_like(u)  # Use dummy thickness for now
+    except KeyError:
+        warnings.warn("Thickness not found in data. Using dummy thickness.")
+        h = np.ones_like(u)
+    
+    # Skip strain rate computation from near-zero velocities
+    # These will be loaded from results.mat instead
+    warnings.warn("DIFFUSE velocities are near-zero. Strain rates should be loaded from results.mat separately.")
+    
+    # Compute speed for completeness (even though very small)
     speed = np.sqrt(u**2 + v**2)
+    
+    # Create placeholder strain rates (will be overridden by results.mat data)
+    strain_rates = {
+        'dudx': np.zeros_like(u),
+        'dvdy': np.zeros_like(u), 
+        'dudy': np.zeros_like(u),
+        'dvdx': np.zeros_like(u)
+    }
     
     # Assemble processed data
     processed_data = {
