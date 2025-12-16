@@ -38,11 +38,8 @@ def run_data_extraction(diffice_data, viscosity_data, output_dir):
     
     if existing_processed.exists():
         print(f"Using existing processed dataset: {existing_processed}")
-        # Copy existing processed dataset to output location
-        import shutil
-        shutil.copy2(existing_processed, output_file)
-        print(f"✓ Processed dataset copied to: {output_file}")
-        return output_file
+        print("✓ No copy needed - using dataset directly")
+        return existing_processed
     else:
         print("✗ No processed dataset found.")
         print(f"Please ensure {existing_processed} exists, or run data preprocessing separately.")

@@ -511,9 +511,10 @@ def optimized_kmeans_analysis(features_scaled, k=3, max_silhouette_size=50000):
         print(f"Dataset too large ({len(labels):,} > {max_silhouette_size:,}) - sampling for silhouette...")
         start = time.time()
         
-        # Sample points for silhouette computation
+        # Sample points for silhouette computation (same as kmeans_runner.py for consistency)
         np.random.seed(42)
-        sample_indices = np.random.choice(len(labels), max_silhouette_size, replace=False)
+        actual_sample_size = min(5000, len(labels) // 2)  # Match kmeans_runner.py sampling
+        sample_indices = np.random.choice(len(labels), actual_sample_size, replace=False)
         sample_features = features_scaled[sample_indices]
         sample_labels = labels[sample_indices]
         
@@ -521,7 +522,7 @@ def optimized_kmeans_analysis(features_scaled, k=3, max_silhouette_size=50000):
         silhouette_avg = silhouette_score(sample_features, sample_labels)
         silhouette_time = time.time() - start
         print(f"✓ Silhouette computation (sampled) completed in {silhouette_time:.3f}s")
-        print(f"  Silhouette score (on {max_silhouette_size:,} samples): {silhouette_avg:.3f}")
+        print(f"  Silhouette score (on {actual_sample_size:,} samples): {silhouette_avg:.3f}")
     
     # Compute cluster statistics
     cluster_sizes = np.bincount(labels)

@@ -222,7 +222,4 @@ analysis/
 *_test/
 *.eps
 
-# Planning documents
-#planning/
-
 */.DS_Store

@@ -70,8 +70,9 @@ class KMeansRunner:
                 max_silhouette_samples = 10000  # Threshold for sampling
                 
                 if features.shape[0] > max_silhouette_samples:
-                    # Sample random subset for silhouette computation
+                    # Sample random subset for silhouette computation with fixed seed for consistency
                     sample_size = min(5000, features.shape[0] // 2)
+                    np.random.seed(42)  # Fixed seed for consistent silhouette results
                     sample_indices = np.random.choice(
                         features.shape[0], sample_size, replace=False
                     )
