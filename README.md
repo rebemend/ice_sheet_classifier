@@ -32,19 +32,10 @@ The classifier uses k-means clustering on physical features derived from ice she
   ├── test_output/         # Preserved but git-ignored
   └── planning/           # Git-ignored planning documents
 
-## Installation
-
-### Requirements
-- Python 3.8+
-- NumPy
-- SciPy  
-- scikit-learn
-- matplotlib (for visualizations)
-
 ### Setup
 ```bash
 # Clone the repository
-git clone <https://github.com/rebemend/ice_sheet_classifier>
+git clone https://github.com/rebemend/ice_sheet_classifier
 cd ice_sheet_classifier
 
 # Install dependencies
@@ -56,19 +47,22 @@ pip install -r requirements.txt
 ### 1. K-Value Selection (Elbow Method)
 To determine the optimal number of clusters for your dataset:
 ```bash
+
 python scripts/run_k_selection.py \
-    --processed_data data/real_data_analysis/processed_dataset.npz \
-    --output_dir results/ \
-    --k_range 2 8
+      --diffice_data dummy \
+      --viscosity_data dummy \
+      --processed_data data/real_data_analysis/processed_dataset.npz \
+      --output_dir results/k_selection/ \
+      --k_range 2 8
 ```
 
 ### 2. K-Means Classification
 Once you've determined the optimal k value (typically k=3 for ice shelf regimes):
 ```bash
 python scripts/run_optimized_kmeans.py \
-    --processed_data data/real_data_analysis/processed_dataset.npz \
-    --output_dir results/ \
-    --k 3
+      --processed_data data/real_data_analysis/processed_dataset.npz \
+      --output_dir results/k3_classification/ \
+      --k 3
 ```
 
 ### 3. Full Pipeline with Raw Data

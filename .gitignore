@@ -216,8 +216,6 @@ diffice/
 # Test and analysis outputs
 test_output/
 real_data_analysis/
-real_data_baseline/
-real_data_*/
 outputs/
 analysis/
 *_analysis/
