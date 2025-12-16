@@ -1,1 +1,0 @@
-# Utilities module for ice shelf classifier

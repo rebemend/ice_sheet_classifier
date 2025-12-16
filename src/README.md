@@ -1,6 +1,6 @@
 # Source Code (src/)
 
-This directory contains the core implementation of the ice shelf classifier, organized into modular components for data loading, feature engineering, clustering, utilities, and visualization.
+This directory contains the core implementation of the ice shelf classifier, organized into modular components for data loading, feature engineering, clustering, and utilities.
 
 ## Module Overview
 
@@ -10,13 +10,12 @@ src/
 ├── data_loading/     # Data I/O and preprocessing
 ├── features/         # Feature computation and engineering  
 ├── clustering/       # K-means algorithms and analysis
-├── utils/           # Utilities and validation
-└── visualization/   # Plotting and spatial analysis
+└── utils/           # Utilities and validation
 ```
 
 ### 🔄 **Data Flow**
 ```
-Raw Data → data_loading → features → clustering → visualization
+Raw Data → data_loading → features → clustering → Built-in Visualization
     ↓            ↓            ↓          ↓            ↓
 DIFFUSE/     Processed    Feature    Cluster    Plots &
 MATLAB       Arrays      Vectors    Labels     Analysis
@@ -58,13 +57,6 @@ MATLAB       Arrays      Vectors    Labels     Analysis
   - `scaling.py` - Feature normalization and scaling
 - **Usage**: Supporting utilities used throughout the pipeline
 
-### **visualization/**
-- **Purpose**: Spatial visualization and feature space analysis
-- **Key Functions**: Cluster maps, feature distributions, PCA plots
-- **Main Files**:
-  - `spatial_maps.py` - Geographic cluster visualizations
-  - `feature_space.py` - Feature space analysis and plotting
-- **Usage**: Visualization pipeline for analysis results
 
 ## Usage Patterns
 
@@ -73,10 +65,9 @@ The modules use a clean import structure:
 ```python
 # From scripts or tests:
 from data_loading.assemble_dataset import load_processed_dataset
-from features.feature_sets import compute_primary_features
+from features.feature_sets import create_feature_set
 from clustering.kmeans_runner import KMeansRunner
 from utils.scaling import scale_features_for_clustering
-from visualization.spatial_maps import plot_cluster_map
 ```
 
 ### **Typical Workflow**
@@ -94,8 +85,8 @@ scaled_features = scale_features_for_clustering(features)
 runner = KMeansRunner()
 results = runner.run_single_kmeans(scaled_features, k=3)
 
-# 5. Visualize results
-plot_cluster_map(results, coordinates, output_path)
+# 5. Built-in visualization in scripts
+# (Visualization is handled by run_optimized_kmeans.py)
 ```
 
 ## Key Design Principles

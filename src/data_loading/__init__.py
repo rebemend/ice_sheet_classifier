@@ -1,1 +1,0 @@
-# Data loading module for ice shelf classifier

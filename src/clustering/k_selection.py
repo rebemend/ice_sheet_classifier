@@ -514,7 +514,7 @@ class KSelectionAnalyzer:
             ax4.text(0.5, 0.5, 'Information Criteria\nNot Available', ha='center', va='center',
                     transform=ax4.transAxes, fontsize=14)
             ax4.set_title('Information Criteria')
-        
+
         # Add consensus recommendation as suptitle
         if 'consensus' in analysis:
             consensus = analysis['consensus']
@@ -522,6 +522,81 @@ class KSelectionAnalyzer:
                         f'({consensus["confidence_level"]} confidence)', fontsize=16)
         
         plt.tight_layout()
+        
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        
+        return fig
+    
+    def create_simple_k_selection_plot(self, analysis: Dict, k_results: Dict[int, Dict],
+                                     save_path: Optional[str] = None) -> plt.Figure:
+        """
+        Create simplified k selection plot with only elbow and silhouette for GUI display.
+        
+        Parameters
+        ----------
+        analysis : Dict
+            Comprehensive analysis results
+        k_results : Dict[int, Dict]
+            Original k-means results
+        save_path : Optional[str]
+            Path to save the plot
+            
+        Returns
+        -------
+        plt.Figure
+            The created figure with only top two plots
+        """
+        # Extract data
+        k_values = np.array(sorted(k_results.keys()))
+        inertias = np.array([k_results[k].get('inertia', np.inf) for k in k_values])
+        silhouettes = np.array([k_results[k].get('silhouette_avg', np.nan) for k in k_values])
+        
+        # Create figure with just two subplots (elbow and silhouette)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+        
+        # Plot 1: Elbow curve
+        ax1.plot(k_values, inertias, 'bo-', linewidth=2, markersize=8)
+        ax1.set_xlabel('Number of Clusters (k)', fontsize=12)
+        ax1.set_ylabel('Inertia (WCSS)', fontsize=12)
+        ax1.set_title('Elbow Method\nLook for the "elbow" where curve flattens', fontsize=14, pad=20)
+        ax1.grid(True, alpha=0.3)
+        
+        # Highlight elbow recommendation
+        if 'elbow' in analysis and 'recommended_k' in analysis['elbow']:
+            elbow_k = analysis['elbow']['recommended_k']
+            if elbow_k in k_values:
+                elbow_idx = np.where(k_values == elbow_k)[0][0]
+                ax1.plot(elbow_k, inertias[elbow_idx], 'ro', markersize=12, alpha=0.7)
+                ax1.annotate(f'Elbow: k={elbow_k}', (elbow_k, inertias[elbow_idx]),
+                           xytext=(10, 10), textcoords='offset points', fontsize=12, fontweight='bold')
+        
+        # Plot 2: Silhouette scores
+        valid_mask = ~np.isnan(silhouettes)
+        ax2.plot(k_values[valid_mask], silhouettes[valid_mask], 'go-', linewidth=2, markersize=8)
+        ax2.set_xlabel('Number of Clusters (k)', fontsize=12)
+        ax2.set_ylabel('Silhouette Score', fontsize=12)
+        ax2.set_title('Silhouette Analysis\nHigher values indicate better separation', fontsize=14, pad=20)
+        ax2.grid(True, alpha=0.3)
+        ax2.axhline(y=0.5, color='r', linestyle='--', alpha=0.5, label='Good threshold')
+        ax2.legend()
+        
+        # Highlight silhouette recommendation
+        if 'silhouette' in analysis and 'best_k' in analysis['silhouette']:
+            sil_k = analysis['silhouette']['best_k']
+            if sil_k in k_values:
+                sil_idx = np.where(k_values == sil_k)[0][0]
+                ax2.plot(sil_k, silhouettes[sil_idx], 'ro', markersize=12, alpha=0.7)
+                ax2.annotate(f'Best: k={sil_k}', (sil_k, silhouettes[sil_idx]),
+                           xytext=(10, 10), textcoords='offset points', fontsize=12, fontweight='bold')
+        
+        # Add consensus recommendation as suptitle
+        if 'consensus' in analysis:
+            consensus = analysis['consensus']
+            fig.suptitle(f'K-Selection Analysis - Recommended: k={consensus["consensus_k"]} '
+                        f'({consensus["confidence_level"]} confidence)', fontsize=16, fontweight='bold', y=0.98)
+        
+        plt.tight_layout(rect=[0, 0, 1, 0.94])  # Leave space for suptitle
         
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')

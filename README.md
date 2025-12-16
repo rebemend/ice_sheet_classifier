@@ -15,22 +15,23 @@ The classifier uses k-means clustering on physical features derived from ice she
 
   ice_sheet_classifier/
   ├── README.md              
-  ├── requirements.txt       # Clean dependencies
-  ├── environment.yml        # Simplified conda environment
+  ├── requirements.txt       # Dependencies
+  ├── environment.yml        # Conda environment
+  ├── main.py               # Complete GUI pipeline
   ├── scripts/              # Main execution scripts
-  │   ├── run_k_selection.py      # K-value selection (elbow
-  method)
-  │   ├── run_optimized_kmeans.py # Main k-means classification
-  │   └── run_kmeans.py           # Full pipeline
-  ├── src/                  # Source code (with necessary 
-  __init__.py)
-  ├── tests/               # Unit tests only
-  ├── data/                # All data files organized here
-  │   ├── real_data_analysis/
-  │   ├── real_data_baseline/
-  │   └── analysis/
-  ├── test_output/         # Preserved but git-ignored
-  └── planning/           # Git-ignored planning documents
+  │   ├── run_k_selection.py      # K-value selection (elbow method)
+  │   └── run_optimized_kmeans.py # Main k-means classification
+  ├── src/                  # Source code modules
+  │   ├── clustering/       # K-means analysis
+  │   ├── data_loading/     # Data processing
+  │   ├── features/         # Feature engineering
+  │   └── utils/            # Scaling utilities
+  ├── tests/               # Unit tests
+  ├── data/                # Data files
+  │   ├── DIFFICE_jax/      # DIFFICE repository data
+  │   ├── raw/              # Raw data files
+  │   └── real_data_analysis/ # Processed dataset
+  └── planning/           # Planning documents
 
 ### Setup
 ```bash
@@ -44,37 +45,50 @@ pip install -r requirements.txt
 
 ## Quick Start
 
-### 1. K-Value Selection (Elbow Method)
+### Complete Pipeline (Recommended)
+Run the entire pipeline with interactive GUI for k-selection:
+```bash
+python main.py
+```
+
+Or with custom paths:
+```bash
+python main.py \
+    --diffice_data data/DIFFICE_jax \
+    --viscosity_data data/raw/results.mat \
+    --output_dir results/
+```
+
+This will:
+1. Use existing processed dataset (data/real_data_analysis/processed_dataset.npz)
+2. Show k-selection analysis plots and prompt for k value  
+3. Run k-means classification with selected k
+4. Display spatial classification results in GUI
+
+**Note:** The pipeline uses the existing processed Amery ice shelf dataset. If you need to process new raw data, use the individual scripts first to create a processed dataset.
+
+### Individual Scripts
+
+#### 1. K-Value Selection (Elbow Method)
 To determine the optimal number of clusters for your dataset:
 ```bash
-
 python scripts/run_k_selection.py \
       --diffice_data dummy \
       --viscosity_data dummy \
       --processed_data data/real_data_analysis/processed_dataset.npz \
-      --output_dir results/k_selection/ \
+      --output_dir results/k_select/ \
       --k_range 2 8
 ```
 
-### 2. K-Means Classification
+#### 2. K-Means Classification
 Once you've determined the optimal k value (typically k=3 for ice shelf regimes):
 ```bash
 python scripts/run_optimized_kmeans.py \
       --processed_data data/real_data_analysis/processed_dataset.npz \
-      --output_dir results/k3_classification/ \
+      --output_dir results/k_classify/ \
       --k 3
 ```
 
-### 3. Full Pipeline with Raw Data
-To run the complete pipeline from raw DIFFUSE and MATLAB data:
-```bash
-python scripts/run_kmeans.py \
-    --diffice_data data/DIFFICE_jax \
-    --viscosity_data data/raw/results.mat \
-    --output_dir results/ \
-    --k 3 \
-    --feature_set primary
-```
 
 ## Data Requirements
 
@@ -129,23 +143,18 @@ The pipeline supports different feature combinations:
 
 ## Scripts Overview
 
-### Core Scripts
+### Main Pipeline
 
-- **`scripts/run_optimized_kmeans.py`**: Main optimized clustering script (recommended for large datasets)
-- **`scripts/run_kmeans.py`**: Full analysis pipeline with visualizations
-- **`scripts/run_k_selection.py`**: Determine optimal number of clusters
-- **`scripts/run_ablation.py`**: Feature importance analysis
+- **`main.py`**: Complete GUI-driven pipeline with k-selection and classification
+- **`scripts/run_optimized_kmeans.py`**: Main clustering script with comprehensive visualizations
+- **`scripts/run_k_selection.py`**: K-value selection with elbow method and silhouette analysis
 
-### Data Processing
+### Source Modules
 
-- **`src/data_loading/`**: Data loading and preprocessing modules
-- **`src/features/`**: Feature computation and selection
-- **`src/utils/`**: Scaling and validation utilities
-
-### Analysis & Visualization
-
-- **`src/clustering/`**: K-means implementation and analysis
-- **`src/visualization/`**: Spatial maps and feature space plots
+- **`src/data_loading/`**: Data loading and preprocessing
+- **`src/features/`**: Feature computation and selection  
+- **`src/utils/`**: Scaling utilities
+- **`src/clustering/`**: K-means analysis and k-selection
 
 ## Output Files
 

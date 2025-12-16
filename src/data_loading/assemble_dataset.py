@@ -2,9 +2,19 @@ import numpy as np
 from typing import Dict, Tuple, Optional
 from scipy.interpolate import griddata
 import warnings
-from .extract_diffice_amery import load_and_process_diffice_amery, validate_diffice_data
+try:
+    from .extract_diffice_amery import load_and_process_diffice_amery, validate_diffice_data
+except ImportError:
+    load_and_process_diffice_amery = None
+    validate_diffice_data = None
+
 from .load_matlab import load_and_validate_viscosity
-from .load_results_mat import load_complete_results_data, validate_results_data
+
+try:
+    from .load_results_mat import load_complete_results_data, validate_results_data
+except ImportError:
+    load_complete_results_data = None
+    validate_results_data = None
 
 
 def interpolate_to_common_grid(source_data: Dict[str, np.ndarray], 
@@ -183,8 +193,11 @@ def create_unified_dataset_from_results(results_mat_path: str) -> Dict[str, np.n
         Complete unified dataset with all fields
     """
     print("Loading complete dataset from results.mat...")
+    if load_complete_results_data is None:
+        raise ImportError("Results.mat data loading not available. Please ensure all required modules are available.")
     unified_data = load_complete_results_data(results_mat_path)
-    validate_results_data(unified_data)
+    if validate_results_data is not None:
+        validate_results_data(unified_data)
     
     print(f"Unified dataset created successfully:")
     print(f"  Grid shape: {unified_data['x'].shape}")
@@ -233,8 +246,11 @@ def create_unified_dataset(diffice_data_path: str,
         print(f"Found velocity scaling factors: u0={velocity_scaling[0]:.6e}, v0={velocity_scaling[1]:.6e}")
     
     print("Loading DIFFICE data...")
+    if load_and_process_diffice_amery is None:
+        raise ImportError("DIFFICE data loading not available. Use use_results_only=True or ensure all required modules are available.")
     diffice_data = load_and_process_diffice_amery(diffice_data_path, velocity_scaling)
-    validate_diffice_data(diffice_data)
+    if validate_diffice_data is not None:
+        validate_diffice_data(diffice_data)
     
     # Check grid compatibility
     grids_compatible = check_grid_compatibility(diffice_data, viscosity_data)

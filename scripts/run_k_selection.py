@@ -125,13 +125,20 @@ def main():
     # Step 6: Create diagnostic plots
     print("Creating diagnostic plots...")
     
-    # K-selection plot
-    fig_k_selection = analyzer.create_k_selection_plot(
+    # Full comprehensive k-selection plot (all 4 plots)
+    fig_full = analyzer.create_k_selection_plot(
+        comprehensive_analysis, k_results,
+        save_path=str(output_dir / 'k_selection_analysis_full.png')
+    )
+    
+    # Simplified k-selection plot for GUI (only elbow + silhouette)
+    fig_simple = analyzer.create_simple_k_selection_plot(
         comprehensive_analysis, k_results,
         save_path=str(output_dir / 'k_selection_analysis.png')
     )
     
-    print(f"K-selection plot saved to: {output_dir / 'k_selection_analysis.png'}")
+    print(f"Full k-selection plot saved to: {output_dir / 'k_selection_analysis_full.png'}")
+    print(f"Simplified k-selection plot (GUI) saved to: {output_dir / 'k_selection_analysis.png'}")
     
     # Step 7: Save results
     results_file = output_dir / 'k_selection_results.npz'

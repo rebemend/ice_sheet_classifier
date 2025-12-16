@@ -1,0 +1,36 @@
+Ice Shelf K-Selection Analysis Summary
+==================================================
+
+Dataset: dummy
+Viscosity data: dummy
+Feature set: primary
+Features: dudx, speed, mu, anisotropy
+Scaling method: standard
+K range tested: 2 to 8
+Valid data points: 194565
+
+K-Selection Results:
+--------------------
+Elbow method: k = 3
+Silhouette method: k = 4
+Combined method: k = 4
+
+Consensus recommendation: k = 8
+Confidence: medium (0.500)
+Method agreement: 2/4
+
+Metrics by K:
+---------------
+K	Inertia		Silhouette
+2	3.09e+05	0.465
+3	1.93e+05	0.474
+4	1.36e+05	0.481
+5	1.10e+05	0.424
+6	8.75e+04	0.404
+7	7.41e+04	0.424
+8	6.50e+04	0.411
+
+Detailed Analysis:
+------------------
+Elbow analysis recommended k: 3
+Best silhouette score: 0.481 at k=4

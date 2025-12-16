@@ -1,1 +1,0 @@
-# Clustering module for ice shelf classifier
