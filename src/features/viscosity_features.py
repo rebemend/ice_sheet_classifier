@@ -21,16 +21,16 @@ def compute_viscosity_features(mu: np.ndarray, eta: np.ndarray,
     -------
     Dict[str, np.ndarray]
         Viscosity features:
-        - 'anisotropy': μ/η (anisotropy ratio)
+        - 'anisotropy': η/μ (anisotropy ratio)
         - 'log_mu': log(μ) (log horizontal viscosity)
         - 'log_eta': log(η) (log vertical viscosity)
-        - 'log_anisotropy': log(μ/η) (log anisotropy ratio)
+        - 'log_anisotropy': log(η/μ) (log anisotropy ratio)
         - 'viscosity_contrast': (μ-η)/(μ+η) (normalized contrast)
         - 'mean_viscosity': (μ+η)/2 (average viscosity)
         - 'thickness_normalized_mu': μ/h (if thickness provided)
     """
     # Basic anisotropy ratio
-    anisotropy = mu / (eta + 1e-12)  # Avoid division by zero
+    anisotropy = eta / (mu + 1e-12)  # Avoid division by zero
     
     # Log-transformed viscosities for better scaling
     # Handle negative and zero values properly
@@ -82,7 +82,7 @@ def compute_viscosity_gradients(mu: np.ndarray, eta: np.ndarray,
         - 'deta_dx', 'deta_dy': Vertical viscosity gradients
         - 'mu_gradient_magnitude': |∇μ|
         - 'eta_gradient_magnitude': |∇η|
-        - 'anisotropy_gradient': ∇(μ/η)
+        - 'anisotropy_gradient': ∇(η/μ)
     """
     # Extract coordinate spacing for gradients
     # Handle both 1D and 2D coordinate arrays
@@ -107,7 +107,7 @@ def compute_viscosity_gradients(mu: np.ndarray, eta: np.ndarray,
     eta_gradient_magnitude = np.sqrt(deta_dx**2 + deta_dy**2)
     
     # Anisotropy gradient
-    anisotropy = mu / (eta + 1e-12)
+    anisotropy = eta / (mu + 1e-12)
     daniso_dx = np.gradient(anisotropy, dx, axis=1)
     daniso_dy = np.gradient(anisotropy, dy, axis=0)
     anisotropy_gradient = np.sqrt(daniso_dx**2 + daniso_dy**2)
@@ -133,7 +133,7 @@ def classify_rheology_regime(anisotropy: np.ndarray,
     Parameters
     ----------
     anisotropy : np.ndarray
-        Anisotropy ratio μ/η
+        Anisotropy ratio η/μ
     mu : np.ndarray
         Horizontal viscosity
     anisotropy_threshold : float

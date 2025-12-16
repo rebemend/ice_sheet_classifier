@@ -135,7 +135,7 @@ def process_results_fields(raw_data: Dict[str, np.ndarray]) -> Dict[str, np.ndar
     # Copy viscosity fields
     processed['mu'] = raw_data['mu']
     processed['eta'] = raw_data['eta']
-    processed['anisotropy'] = raw_data['mu'] / raw_data['eta']
+    processed['anisotropy'] = raw_data['eta'] / raw_data['mu']
     
     # Additional derived quantities
     processed['divergence'] = processed['epsilon_xx'] + processed['epsilon_yy']

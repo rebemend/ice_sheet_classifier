@@ -136,7 +136,7 @@ def load_viscosity_data(mat_file_path: str) -> Dict[str, np.ndarray]:
 
 def compute_anisotropy_ratio(mu: np.ndarray, eta: np.ndarray) -> np.ndarray:
     """
-    Compute anisotropy ratio μ/η from horizontal and vertical viscosity.
+    Compute anisotropy ratio η/μ from horizontal and vertical viscosity.
     
     Parameters
     ----------
@@ -148,11 +148,11 @@ def compute_anisotropy_ratio(mu: np.ndarray, eta: np.ndarray) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Anisotropy ratio μ/η, with small values clipped to avoid division issues
+        Anisotropy ratio η/μ, with small values clipped to avoid division issues
     """
     # Avoid division by very small numbers
-    eta_safe = np.where(np.abs(eta) < 1e-12, 1e-12, eta)
-    return mu / eta_safe
+    mu_safe = np.where(np.abs(mu) < 1e-12, 1e-12, mu)
+    return eta / mu_safe
 
 
 def validate_viscosity_data(viscosity_data: Dict[str, np.ndarray]) -> None:

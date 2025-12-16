@@ -1,0 +1,48 @@
+{
+  "parameters": {
+    "k": 4,
+    "feature_set": "primary",
+    "features": [
+      "dudx",
+      "speed",
+      "mu",
+      "anisotropy"
+    ],
+    "max_silhouette_size": 50000
+  },
+  "data_info": {
+    "grid_shape": [
+      370,
+      903
+    ],
+    "total_points": 334110,
+    "valid_points": 194565
+  },
+  "results": {
+    "inertia": 273638.625,
+    "silhouette_avg": 0.40116316080093384,
+    "n_clusters": 4,
+    "converged": true,
+    "n_iter": 20
+  },
+  "cluster_analysis": {
+    "sizes": [
+      27036,
+      77032,
+      66514,
+      23983
+    ],
+    "proportions": [
+      0.13895613291188036,
+      0.39591910158558835,
+      0.34186004677100196,
+      0.1232647187315293
+    ],
+    "balance_ratio": 0.31133814518641606
+  },
+  "timing": {
+    "total_time": 12.211382150650024,
+    "kmeans_time": 0.48235607147216797,
+    "silhouette_time": 11.66589903831482
+  }
+}

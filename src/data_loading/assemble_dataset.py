@@ -309,8 +309,8 @@ def create_feature_arrays(unified_data: Dict[str, np.ndarray]) -> Dict[str, np.n
             anisotropy = unified_data['anisotropy'].flatten()
         elif 'eta' in unified_data:
             eta = unified_data['eta'].flatten()
-            anisotropy = mu / eta
-            print("Computed anisotropy from mu/eta")
+            anisotropy = eta / mu
+            print("Computed anisotropy from eta/mu")
         else:
             anisotropy = np.full_like(mu, np.nan)
             warnings.warn("Cannot compute anisotropy: eta field missing")

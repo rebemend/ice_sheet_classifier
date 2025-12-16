@@ -96,7 +96,7 @@ Processed datasets are saved as NumPy .npz files with two main components:
 - `x`, `y`: Coordinate grids [m]
 - `mu`, `eta`: Viscosity fields [Pa·s]
 - `primary_strain`: Longitudinal strain rate [1/s]
-- `anisotropy`: Viscosity ratio (μ/η)
+- `anisotropy`: Viscosity ratio (η/μ)
 
 **feature_data** (metadata):
 - `coordinates`: Grid coordinate arrays

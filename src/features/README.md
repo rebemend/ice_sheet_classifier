@@ -63,7 +63,7 @@ divergence = compute_velocity_divergence(dudx, dvdy)
 Viscosity-based features and rheological properties.
 
 **Key Functions:**
-- `compute_anisotropy_ratio()` - Viscosity anisotropy (μ/η)
+- `compute_anisotropy_ratio()` - Viscosity anisotropy (η/μ)
 - `compute_deviatoric_stress()` - Deviatoric stress magnitude
 - `compute_stress_ratios()` - Stress anisotropy measures
 - `compute_rheological_indicator()` - Flow regime indicators
@@ -103,7 +103,7 @@ stress_ratios = compute_stress_ratios(stress_tensor, mu, eta)
 - **Units**: Pa·s
 
 #### **anisotropy** - Viscosity Ratio
-- **Definition**: μ/η (horizontal/vertical viscosity ratio)
+- **Definition**: η/μ (vertical/horizontal viscosity ratio)
 - **Physical meaning**: Degree of flow anisotropy
 - **Typical range**: 0.1 to 10
 - **Units**: Dimensionless

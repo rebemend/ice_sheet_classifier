@@ -25,7 +25,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from data_loading.assemble_dataset import load_processed_dataset
 
-def create_clustering_visualizations(features_scaled, labels, centroids, feature_names, output_dir, k=3):
+def create_clustering_visualizations(features_scaled, labels, centroids, feature_names, output_dir, k=3, coordinates=None, grid_shape=None, features_unscaled=None, scaler=None):
     """
     Create comprehensive visualization plots for clustering results.
     
@@ -43,6 +43,14 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
         Output directory for plots
     k : int
         Number of clusters
+    coordinates : np.ndarray, optional
+        Spatial coordinates for mapping
+    grid_shape : tuple, optional
+        Original grid shape for spatial plotting
+    features_unscaled : np.ndarray, optional
+        Original unscaled features for physical interpretation
+    scaler : sklearn.StandardScaler, optional
+        Fitted scaler to inverse transform centroids
     """
     print("Creating visualization plots...")
     
@@ -61,6 +69,36 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
         labels_viz = labels
         sample_idx = np.arange(len(features_scaled))
     
+    # Create regime mapping for consistent labeling and colors
+    regime_mapping = {}
+    cluster_colors = {}
+    
+    # Only use physical regime names for k=3, otherwise use cluster numbers
+    if k == 3 and coordinates is not None and grid_shape is not None:
+        # Physical regime colors for k=3
+        regime_colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
+        
+        # Use strain rate based mapping for k=3
+        for cluster in range(k):
+            centroid = centroids[cluster]
+            dudx_val = centroid[feature_names.index('dudx')]
+            
+            if dudx_val < -0.3:
+                regime_mapping[cluster] = 'Compression'
+                cluster_colors[cluster] = regime_colors[0]  # Blue
+            elif dudx_val > 0.3:
+                regime_mapping[cluster] = 'Extension'
+                cluster_colors[cluster] = regime_colors[2]  # Green  
+            else:
+                regime_mapping[cluster] = 'Transition'
+                cluster_colors[cluster] = regime_colors[1]  # Orange
+    else:
+        # Fallback to cluster numbers for k != 3 or when coordinates not available
+        cmap = plt.cm.Set2
+        for cluster in range(k):
+            regime_mapping[cluster] = f'Cluster {cluster}'
+            cluster_colors[cluster] = cmap(cluster / max(k-1, 1))  # Normalize to [0,1] range
+    
     # 1. Feature Pair Plots
     print("  Creating feature pair plots...")
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -76,7 +114,8 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
                 ax.scatter(
                     features_viz[cluster_mask, i],
                     features_viz[cluster_mask, j],
-                    alpha=0.6, s=20, label=f'Cluster {cluster}'
+                    alpha=0.6, s=20, label=regime_mapping[cluster],
+                    color=cluster_colors[cluster]
                 )
         
         ax.set_xlabel(f'{name_i} (scaled)')
@@ -103,7 +142,8 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
                 features_pca[cluster_mask, 0],
                 features_pca[cluster_mask, 1],
                 alpha=0.7, s=30, 
-                label=f'Cluster {cluster} ({np.sum(cluster_mask)} points)'
+                label=f'{regime_mapping[cluster]} ({np.sum(cluster_mask)} points)',
+                color=cluster_colors[cluster]
             )
     
     plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)')
@@ -114,9 +154,16 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
     plt.savefig(output_dir / "pca_clusters.png", dpi=150, bbox_inches='tight')
     plt.close()
     
-    # 3. Cluster Analysis (Centroids + Sizes)
+    # 3. Cluster Analysis (Centroids + Sizes + Unscaled Centroids)
     print("  Creating cluster analysis plots...")
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Create figure with 4 subplots if unscaled data is available
+    if features_unscaled is not None and scaler is not None:
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(18, 12))
+    else:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+        ax3 = None
+        ax4 = None
     
     # Centroid values
     x_pos = np.arange(len(feature_names))
@@ -127,8 +174,9 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
             x_pos + cluster * width, 
             centroids[cluster], 
             width, 
-            label=f'Cluster {cluster}',
-            alpha=0.8
+            label=regime_mapping[cluster],
+            alpha=0.8,
+            color=cluster_colors[cluster]
         )
     
     ax1.set_xlabel('Features')
@@ -141,11 +189,91 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
     
     # Cluster sizes
     sizes = [np.sum(labels == i) for i in range(k)]
-    colors = plt.cm.Set2(np.arange(k))
+    pie_colors = [cluster_colors[i] for i in range(k)]
     
-    ax2.pie(sizes, labels=[f'Cluster {i}\\n({size:,} points)' for i, size in enumerate(sizes)],
-            autopct='%1.1f%%', colors=colors, startangle=90)
+    ax2.pie(sizes, labels=[f'{regime_mapping[i]}\\n({size:,} points)' for i, size in enumerate(sizes)],
+            autopct='%1.1f%%', colors=pie_colors, startangle=90)
     ax2.set_title('Cluster Size Distribution')
+    
+    # Unscaled centroids (physical units) if available
+    if ax3 is not None and ax4 is not None:
+        # Transform scaled centroids back to original units
+        centroids_unscaled = scaler.inverse_transform(centroids)
+        
+        # Physical units for each feature
+        feature_units = ['1/s', 'm/s', 'Pa·s', 'dimensionless']  # dudx, speed, mu, anisotropy
+        feature_labels = [f'{name}\\n[{unit}]' for name, unit in zip(feature_names, feature_units)]
+        
+        # Plot 1: Linear scale (raw physical values)
+        for cluster in range(k):
+            ax3.bar(
+                x_pos + cluster * width, 
+                centroids_unscaled[cluster], 
+                width, 
+                label=regime_mapping[cluster],
+                alpha=0.8,
+                color=cluster_colors[cluster]
+            )
+        
+        ax3.set_xlabel('Features')
+        ax3.set_ylabel('Centroid Value (Linear Scale)')
+        ax3.set_title('Cluster Centroids - Physical Units (Linear Scale)')
+        ax3.set_xticks(x_pos + width)
+        ax3.set_xticklabels(feature_labels, rotation=45, ha='right')
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        # Plot 2: Same values but with log scale for better visibility of small values
+        for cluster in range(k):
+            # Use absolute values for log scale, handle negatives
+            values = centroids_unscaled[cluster]
+            abs_values = np.abs(values)
+            # Replace zeros with small positive values for log scale
+            abs_values = np.where(abs_values == 0, 1e-12, abs_values)
+            
+            bars = ax4.bar(
+                x_pos + cluster * width, 
+                abs_values, 
+                width, 
+                label=regime_mapping[cluster],
+                alpha=0.8,
+                color=cluster_colors[cluster]
+            )
+            
+            # Add value labels showing actual values (with sign)
+            for i, (bar, actual_val) in enumerate(zip(bars, values)):
+                height = bar.get_height()
+                # Format the labels based on the magnitude
+                if abs(actual_val) >= 1e6:
+                    label = f'{actual_val:.2e}'
+                elif abs(actual_val) >= 1000:
+                    label = f'{actual_val:.0f}'
+                elif abs(actual_val) >= 1:
+                    label = f'{actual_val:.2f}'
+                elif abs(actual_val) >= 0.001:
+                    label = f'{actual_val:.4f}'
+                else:
+                    label = f'{actual_val:.2e}'
+                
+                ax4.annotate(label,
+                           xy=(bar.get_x() + bar.get_width() / 2, height),
+                           xytext=(0, 3),  # 3 points vertical offset
+                           textcoords="offset points",
+                           ha='center', va='bottom',
+                           fontsize=8, rotation=90)
+        
+        ax4.set_xlabel('Features')
+        ax4.set_ylabel('|Centroid Value| (Log Scale)')
+        ax4.set_title('Cluster Centroids - Physical Units (Log Scale for Visibility)')
+        ax4.set_xticks(x_pos + width)
+        ax4.set_xticklabels(feature_labels, rotation=45, ha='right')
+        ax4.legend()
+        ax4.grid(True, alpha=0.3)
+        ax4.set_yscale('log')
+        
+        # Add extra space at the top to prevent label overlap with title
+        y_min, y_max = ax4.get_ylim()
+        ax4.set_ylim(y_min, y_max * 10)  # Add extra space at top
     
     plt.tight_layout()
     plt.savefig(output_dir / "cluster_analysis.png", dpi=150, bbox_inches='tight')
@@ -167,8 +295,9 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
                     feature_values[cluster_mask], 
                     alpha=0.7, 
                     bins=50, 
-                    label=f'Cluster {cluster}',
-                    density=True
+                    label=regime_mapping[cluster],
+                    density=True,
+                    color=cluster_colors[cluster]
                 )
         
         ax.set_xlabel(f'{feature_name} (scaled)')
@@ -233,15 +362,101 @@ def create_clustering_visualizations(features_scaled, labels, centroids, feature
     except Exception as e:
         print(f"    Skipping silhouette analysis: {e}")
     
-    print("  Visualization plots completed!")
-    
-    return [
+    # 6. Spatial Ice Shelf Classification Map
+    plot_files = [
         "feature_pairs.png",
         "pca_clusters.png", 
         "cluster_analysis.png",
         "feature_distributions.png",
         "silhouette_analysis.png"
     ]
+    
+    if coordinates is not None and grid_shape is not None:
+        print("  Creating spatial ice shelf classification map...")
+        try:
+            # Create 2D spatial map of ice shelf with flow regimes
+            fig, ax1 = plt.subplots(1, 1, figsize=(10, 8))
+            
+            # Define regime names and colors
+            regime_names = ['Compression', 'Transition', 'Extension']
+            regime_colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # Blue, Orange, Green
+            
+            # Create full grid for spatial plotting
+            x_coords = coordinates[:, 0]
+            y_coords = coordinates[:, 1]
+            
+            # Map clusters to flow regimes - only for k=3, otherwise use cluster numbers
+            cluster_regimes = {}
+            
+            if k == 3:
+                # Use physical regime mapping for k=3
+                for cluster in range(k):
+                    cluster_mask = labels == cluster
+                    if np.any(cluster_mask):
+                        # Get centroid values (already computed)
+                        centroid = centroids[cluster]
+                        dudx_val = centroid[feature_names.index('dudx')]
+                        
+                        # Assign regime based on strain rate centroid (primary)
+                        if dudx_val < -0.3:  # Strongly negative strain
+                            cluster_regimes[cluster] = (0, 'Compression', regime_colors[0])
+                        elif dudx_val > 0.3:  # Strongly positive strain
+                            cluster_regimes[cluster] = (2, 'Extension', regime_colors[2])
+                        else:  # Near-zero strain
+                            cluster_regimes[cluster] = (1, 'Transition', regime_colors[1])
+                
+                # Verify all clusters assigned, fallback if needed
+                if len(cluster_regimes) != k:
+                    print(f"Warning: Only {len(cluster_regimes)}/{k} clusters assigned, using fallback...")
+                    # Use strain rate directly for any unassigned
+                    for cluster in range(k):
+                        if cluster not in cluster_regimes:
+                            dudx_val = centroids[cluster][feature_names.index('dudx')]
+                            if dudx_val < 0:
+                                cluster_regimes[cluster] = (0, 'Compression', regime_colors[0])
+                            else:
+                                cluster_regimes[cluster] = (2, 'Extension', regime_colors[2])
+            else:
+                # For k != 3, use simple cluster numbering
+                cmap = plt.cm.Set2
+                for cluster in range(k):
+                    color = cmap(cluster / max(k-1, 1))  # Normalize to [0,1] range
+                    cluster_regimes[cluster] = (cluster, f'Cluster {cluster}', color)
+            
+            # Plot 1: Cluster labels
+            scatter1 = ax1.scatter(x_coords, y_coords, c=[cluster_regimes[label][2] for label in labels], 
+                                 s=8, alpha=0.7)
+            ax1.set_xlabel('X (m)')
+            ax1.set_ylabel('Y (m)')
+            ax1.set_title('Ice Shelf Flow Regimes - Classification')
+            ax1.axis('equal')
+            ax1.grid(True, alpha=0.3)
+            
+            # Create custom legend
+            legend_elements = []
+            for cluster in range(k):
+                if cluster in cluster_regimes:
+                    regime_idx, name, color = cluster_regimes[cluster]
+                    count = np.sum(labels == cluster)
+                    legend_elements.append(plt.Line2D([0], [0], marker='o', color='w', 
+                                                    markerfacecolor=color, markersize=8,
+                                                    label=f'{name} ({count:,} points)'))
+            ax1.legend(handles=legend_elements, loc='upper right')
+            
+            plt.tight_layout()
+            plt.savefig(output_dir / "spatial_ice_shelf_regimes.png", dpi=150, bbox_inches='tight')
+            plt.close()
+            
+            plot_files.append("spatial_ice_shelf_regimes.png")
+            
+        except Exception as e:
+            print(f"    Skipping spatial mapping: {e}")
+    else:
+        print("  Skipping spatial mapping (coordinates not provided)")
+    
+    print("  Visualization plots completed!")
+    
+    return plot_files
 
 def optimized_kmeans_analysis(features_scaled, k=3, max_silhouette_size=50000):
     """
@@ -505,7 +720,8 @@ def main():
         try:
             plot_files = create_clustering_visualizations(
                 features_scaled, results['labels'], results['centroids'], 
-                feature_names, output_dir, args.k
+                feature_names, output_dir, args.k, valid_coordinates, unified_data['x'].shape,
+                features, scaler
             )
             print("Visualization files created:")
             for plot_file in plot_files:
