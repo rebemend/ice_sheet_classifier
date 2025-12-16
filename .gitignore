@@ -223,4 +223,6 @@ analysis/
 *.eps
 
 # Planning documents
-planning/
+#planning/
+
+*/.DS_Store
